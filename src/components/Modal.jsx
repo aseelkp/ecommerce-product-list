@@ -1,5 +1,4 @@
-import React, { useEffect } from 'react';
-import PropTypes from 'prop-types';
+import { useEffect } from 'react';
 
 const Modal = ({
   isOpen,
@@ -14,7 +13,6 @@ const Modal = ({
   customFooter,
 }) => {
   useEffect(() => {
-    // Prevent scrolling when modal is open
     if (isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -26,7 +24,6 @@ const Modal = ({
     };
   }, [isOpen]);
 
-  // Modal size classes
   const sizeClasses = {
     sm: 'max-w-sm',
     md: 'max-w-md',
@@ -74,29 +71,6 @@ const Modal = ({
       <div className="modal-backdrop" onClick={onClose}></div>
     </div>
   );
-};
-
-Modal.propTypes = {
-  isOpen: PropTypes.bool.isRequired,
-  onClose: PropTypes.func.isRequired,
-  title: PropTypes.string,
-  children: PropTypes.node,
-  actionLabel: PropTypes.string,
-  onAction: PropTypes.func,
-  size: PropTypes.oneOf([
-    'sm',
-    'md',
-    'lg',
-    'xl',
-    '2xl',
-    '3xl',
-    '4xl',
-    '5xl',
-    'full',
-  ]),
-  hideCloseButton: PropTypes.bool,
-  footer: PropTypes.node,
-  customFooter: PropTypes.node,
 };
 
 export default Modal;
