@@ -8,6 +8,7 @@ const SelectProductModal = ({
   onClose,
   onSelect,
   selectedProducts = [],
+  editingProductIndex = null,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -17,16 +18,46 @@ const SelectProductModal = ({
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  // Store IDs of products that are already selected in other product items
+  const [alreadySelectedProductIds, setAlreadySelectedProductIds] = useState(
+    new Set()
+  );
   const productsPerPage = 10;
   const containerRef = useRef(null);
+  const initialLoadRef = useRef(false);
+  const searchChangeRef = useRef(false);
+
+  // Calculate products that are already selected in other product items
+  useEffect(() => {
+    if (isOpen && editingProductIndex !== null) {
+      const selectedProductIds = new Set();
+
+      selectedProducts.forEach((product, index) => {
+        // Skip the product being edited
+        if (index !== editingProductIndex && product.productId) {
+          selectedProductIds.add(product.productId);
+        }
+      });
+
+      setAlreadySelectedProductIds(selectedProductIds);
+    } else {
+      setAlreadySelectedProductIds(new Set());
+    }
+  }, [isOpen, selectedProducts, editingProductIndex]);
 
   const loadProducts = useCallback(
     async (reset = false) => {
+      if (isLoading) return;
+
       try {
         setIsLoading(true);
         setError(null);
 
         const currentPage = reset ? 0 : page;
+
+        console.log(
+          `Fetching products: page=${currentPage}, search=${debouncedSearchTerm}`
+        );
 
         const response = await fetchProducts({
           search: debouncedSearchTerm,
@@ -34,22 +65,31 @@ const SelectProductModal = ({
           limit: productsPerPage,
         });
 
-        const fetchedProducts = response.data || [];
+        // Filter products for display
+        let filteredProducts = response;
 
-        if (fetchedProducts.length < productsPerPage) {
-          setHasMore(false);
-        } else {
-          setHasMore(true);
+        // In edit mode, filter out products that are already selected in other items
+        if (
+          editingProductIndex !== null &&
+          alreadySelectedProductIds.size > 0
+        ) {
+          filteredProducts = response.filter(
+            (product) => !alreadySelectedProductIds.has(product.id)
+          );
         }
 
+        // If we received fewer items than requested, there are no more items
+        const noMoreItems = filteredProducts.length < productsPerPage;
+        setHasMore(!noMoreItems);
+
         setDisplayedProducts((prev) =>
-          reset ? fetchedProducts : [...prev, ...fetchedProducts]
+          reset ? filteredProducts : [...prev, ...filteredProducts]
         );
 
         if (!reset) {
           setPage(currentPage + 1);
         } else {
-          setPage(1);
+          setPage(1); // After reset, next page to fetch will be 1
         }
       } catch (err) {
         setError('Failed to load products. Please try again.');
@@ -58,19 +98,24 @@ const SelectProductModal = ({
         setIsLoading(false);
       }
     },
-    [page, debouncedSearchTerm, productsPerPage]
+    [
+      page,
+      debouncedSearchTerm,
+      productsPerPage,
+      isLoading,
+      editingProductIndex,
+      alreadySelectedProductIds,
+    ]
   );
 
   const handleScroll = useCallback(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || isLoading || !hasMore) return;
 
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    if (
-      scrollTop + clientHeight >= scrollHeight - 20 &&
-      hasMore &&
-      !isLoading
-    ) {
-      loadProducts();
+    const threshold = 20; // pixels from bottom to trigger load
+
+    if (scrollTop + clientHeight >= scrollHeight - threshold) {
+      loadProducts(false);
     }
   }, [loadProducts, hasMore, isLoading]);
 
@@ -130,13 +175,71 @@ const SelectProductModal = ({
     onClose();
   };
 
-  // Load products when search term changes
+  // Handle modal open/close and initial data loading
   useEffect(() => {
     if (isOpen) {
+      setPage(0);
+      setHasMore(true);
+      setDisplayedProducts([]);
+      searchChangeRef.current = false;
+
+      let initialSelectedItems = [];
+
+      if (
+        editingProductIndex !== null &&
+        selectedProducts[editingProductIndex]
+      ) {
+        const editingProduct = selectedProducts[editingProductIndex];
+
+        if (
+          editingProduct.productId &&
+          Array.isArray(editingProduct.variants) &&
+          editingProduct.variants.length > 0
+        ) {
+          initialSelectedItems.push({
+            productId: editingProduct.productId,
+            productTitle: editingProduct.productTitle || '',
+            productImage: editingProduct.productImage || { src: '' },
+            variants: editingProduct.variants,
+          });
+        }
+      }
+
+      setSelectedItems(initialSelectedItems);
+      initialLoadRef.current = true;
+    } else {
+      setSearchTerm('');
+    }
+  }, [isOpen, selectedProducts, editingProductIndex]);
+
+  // Handle search term changes and initial load
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (initialLoadRef.current) {
+      console.log('Initial load');
+      initialLoadRef.current = false;
+      loadProducts(true);
+    } else if (searchChangeRef.current) {
+      // This is a search term change
+      console.log('Search changed');
+      searchChangeRef.current = false;
       loadProducts(true);
     }
-  }, [debouncedSearchTerm, isOpen, loadProducts]);
+  }, [isOpen, loadProducts, debouncedSearchTerm]);
 
+  // When search term changes, set flag to trigger a search
+  useEffect(() => {
+    if (isOpen && debouncedSearchTerm !== undefined) {
+      // Don't call loadProducts directly from here to avoid duplicate calls
+      searchChangeRef.current = true;
+      setPage(0);
+      setHasMore(true);
+      setDisplayedProducts([]); // Clear displayed products when search changes
+    }
+  }, [debouncedSearchTerm, isOpen]);
+
+  // Scroll event listener
   useEffect(() => {
     const container = containerRef.current;
     if (container) {
@@ -145,50 +248,33 @@ const SelectProductModal = ({
     }
   }, [handleScroll]);
 
-  // Reset pagination when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setPage(0);
-      setHasMore(true);
-      setDisplayedProducts([]);
-
-      const initialSelectedItems = [];
-
-      selectedProducts.forEach((item) => {
-        if (
-          item.productId &&
-          Array.isArray(item.variants) &&
-          item.variants.length > 0
-        ) {
-          initialSelectedItems.push({
-            productId: item.productId,
-            productTitle: item.productTitle || '',
-            productImage: item.productImage || { src: '' },
-            variants: item.variants,
-          });
-        }
-      });
-
-      setSelectedItems(initialSelectedItems);
-    }
-  }, [isOpen, selectedProducts]);
+  // Helper function to determine if a product is disabled
+  const isProductDisabled = (productId) => {
+    return alreadySelectedProductIds.has(productId);
+  };
 
   return (
     <>
       <Modal
         isOpen={isOpen}
         onClose={onClose}
-        title={'Select Product'}
-        size="3xl"
+        title={editingProductIndex !== null ? 'Edit Product' : 'Select Product'}
+        size="7xl"
         customFooter={
           <div className="flex items-center justify-between">
             <span>{selectedItems.length} product variant(s) selected</span>
             <div className="flex gap-4">
-              <button className="btn" onClick={handleAdd}>
-                Add
-              </button>
-              <button className="btn btn-outline" onClick={onClose}>
+              <button
+                className="btn btn-outline border-[#00000066] text-[#00000066]"
+                onClick={onClose}
+              >
                 Cancel
+              </button>
+              <button
+                className="btn btn-primary text-white"
+                onClick={handleAdd}
+              >
+                Add
               </button>
             </div>
           </div>
@@ -237,9 +323,11 @@ const SelectProductModal = ({
               </div>
             )}
 
-            {displayedProducts.map((product) => (
-              <div key={product.id} className="border-b">
-                <div className="flex items-center border-b border-gray-300 bg-gray-50 p-3">
+            {displayedProducts.map((product, i) => (
+              <div key={`${product.id}-${i}`} className="border-b">
+                <div
+                  className={`flex items-center border-b border-gray-300 bg-gray-50 p-3 ${isProductDisabled(product.id) ? 'opacity-50' : ''}`}
+                >
                   <input
                     type="checkbox"
                     className="checkbox mr-3"
@@ -247,19 +335,22 @@ const SelectProductModal = ({
                       isSelected(product.id, v.id)
                     )}
                     onChange={() => {
-                      const allSelected = product.variants.every((v) =>
-                        isSelected(product.id, v.id)
-                      );
-                      product.variants.forEach((v) => {
-                        if (allSelected) {
-                          if (isSelected(product.id, v.id)) {
+                      if (!isProductDisabled(product.id)) {
+                        const allSelected = product.variants.every((v) =>
+                          isSelected(product.id, v.id)
+                        );
+                        product.variants.forEach((v) => {
+                          if (allSelected) {
+                            if (isSelected(product.id, v.id)) {
+                              toggleProductSelection(product, v);
+                            }
+                          } else if (!isSelected(product.id, v.id)) {
                             toggleProductSelection(product, v);
                           }
-                        } else if (!isSelected(product.id, v.id)) {
-                          toggleProductSelection(product, v);
-                        }
-                      });
+                        });
+                      }
                     }}
+                    disabled={isProductDisabled(product.id)}
                   />
                   <div className="flex items-center">
                     <img
@@ -274,16 +365,19 @@ const SelectProductModal = ({
                 {product.variants.map((variant) => (
                   <div
                     key={variant.id}
-                    className="flex items-center justify-between border-b border-gray-300 p-3 pl-16 hover:bg-gray-50"
+                    className={`flex items-center justify-between border-b border-gray-300 p-3 pl-16 hover:bg-gray-50 ${isProductDisabled(product.id) ? 'opacity-50' : ''}`}
                   >
                     <div className="flex items-center">
                       <input
                         type="checkbox"
                         className="checkbox mr-3"
                         checked={isSelected(product.id, variant.id)}
-                        onChange={() =>
-                          toggleProductSelection(product, variant)
-                        }
+                        onChange={() => {
+                          if (!isProductDisabled(product.id)) {
+                            toggleProductSelection(product, variant);
+                          }
+                        }}
+                        disabled={isProductDisabled(product.id)}
                       />
                       <span>{variant.title}</span>
                     </div>
@@ -306,7 +400,9 @@ const SelectProductModal = ({
 
             {displayedProducts.length === 0 && !isLoading && !error && (
               <div className="p-4 text-center text-gray-500">
-                No products found
+                {editingProductIndex !== null
+                  ? 'No available products to select. Products already selected in other items are not shown.'
+                  : 'No products found'}
               </div>
             )}
 
