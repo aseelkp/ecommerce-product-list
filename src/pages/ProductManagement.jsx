@@ -116,15 +116,11 @@ const ProductManagement = () => {
 
   const handleItemSelect = (selectedItems) => {
     setProducts((currentProducts) => {
-      // Clone the current products array
       const updatedProducts = [...currentProducts];
 
-      // If we're editing an existing product
       if (editingProductIndex !== null) {
-        // Get the product being edited
         const editingProduct = updatedProducts[editingProductIndex];
 
-        // Filter out products that were already selected for the editing product
         const newProductSelections = selectedItems.filter(
           (item) => item.productId !== editingProduct.id
         );
@@ -150,7 +146,6 @@ const ProductManagement = () => {
           };
         } else {
           // If the current product was completely removed from the selection
-          // Replace it with the first new selection if available
           if (newProductSelections.length > 0) {
             const firstNewSelection = newProductSelections.shift();
             updatedProducts[editingProductIndex] = {
@@ -180,7 +175,6 @@ const ProductManagement = () => {
           }
         }
 
-        // Add any remaining new product selections
         newProductSelections.forEach(
           ({ productId, productTitle, productImage, variants }) => {
             updatedProducts.push({

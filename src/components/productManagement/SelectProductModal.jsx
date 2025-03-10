@@ -33,7 +33,6 @@ const SelectProductModal = ({
       const selectedProductIds = new Set();
 
       selectedProducts.forEach((product, index) => {
-        // Skip the product being edited
         if (index !== editingProductIndex && product.productId) {
           selectedProductIds.add(product.productId);
         }
@@ -231,11 +230,10 @@ const SelectProductModal = ({
   // When search term changes, set flag to trigger a search
   useEffect(() => {
     if (isOpen && debouncedSearchTerm !== undefined) {
-      // Don't call loadProducts directly from here to avoid duplicate calls
       searchChangeRef.current = true;
       setPage(0);
       setHasMore(true);
-      setDisplayedProducts([]); // Clear displayed products when search changes
+      setDisplayedProducts([]);
     }
   }, [debouncedSearchTerm, isOpen]);
 
