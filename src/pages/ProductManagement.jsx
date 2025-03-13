@@ -116,26 +116,19 @@ const ProductManagement = () => {
 
   const handleItemSelect = (selectedItems) => {
     setProducts((currentProducts) => {
-      const updatedProducts = [...currentProducts];
+      let updatedProducts = [...currentProducts];
 
       if (editingProductIndex !== null) {
-        const editingProduct = updatedProducts[editingProductIndex];
+        // When editing a product
+        if (selectedItems.length > 0) {
+          // Replace the current product with the first selection
+          const firstSelection = selectedItems[0];
 
-        const newProductSelections = selectedItems.filter(
-          (item) => item.productId !== editingProduct.id
-        );
-
-        // Update the editing product with its new selection
-        const editingProductSelection = selectedItems.find(
-          (item) => item.productId === editingProduct.id
-        );
-
-        if (editingProductSelection) {
           updatedProducts[editingProductIndex] = {
-            ...updatedProducts[editingProductIndex],
-            title: editingProductSelection.productTitle || '',
-            image: editingProductSelection.productImage || { src: '' },
-            variants: editingProductSelection.variants.map((variant) => ({
+            id: firstSelection.productId,
+            title: firstSelection.productTitle || '',
+            image: firstSelection.productImage || { src: '' },
+            variants: firstSelection.variants.map((variant) => ({
               id: variant.id,
               title: variant.title || '',
               price: variant.price || 0,
@@ -143,61 +136,45 @@ const ProductManagement = () => {
               discountValue: '',
               discountType: 'percent',
             })),
+            discountValue: 0,
+            discountType: 'percentage',
+            showVariants: false,
+            showDiscount: false,
           };
-        } else {
-          // If the current product was completely removed from the selection
-          if (newProductSelections.length > 0) {
-            const firstNewSelection = newProductSelections.shift();
-            updatedProducts[editingProductIndex] = {
-              id: firstNewSelection.productId,
-              title: firstNewSelection.productTitle || '',
-              image: firstNewSelection.productImage || { src: '' },
-              variants: firstNewSelection.variants.map((variant) => ({
-                id: variant.id,
-                title: variant.title || '',
-                price: variant.price || 0,
-                inventory: variant.inventory || 0,
-                discountValue: '',
-                discountType: 'percent',
-              })),
-              discountValue: 0,
-              discountType: 'percentage',
-              showVariants: false,
-              showDiscount: false,
-            };
-          } else {
-            // If there's no new selection, reset the product to empty
-            updatedProducts[editingProductIndex] = {
-              ...updatedProducts[editingProductIndex],
-              title: '',
-              variants: [],
-            };
-          }
-        }
 
-        newProductSelections.forEach(
-          ({ productId, productTitle, productImage, variants }) => {
-            updatedProducts.push({
-              id: productId,
-              title: productTitle || '',
-              image: productImage || { src: '' },
-              variants: variants.map((variant) => ({
-                id: variant.id,
-                title: variant.title || '',
-                price: variant.price || 0,
-                inventory: variant.inventory || 0,
-                discountValue: '',
-                discountType: 'percent',
-              })),
-              discountValue: 0,
-              discountType: 'percentage',
-              showVariants: false,
-              showDiscount: false,
-            });
+          if (selectedItems.length > 1) {
+            const additionalSelections = selectedItems.slice(1);
+
+            additionalSelections.forEach(
+              ({ productId, productTitle, productImage, variants }) => {
+                updatedProducts.push({
+                  id: productId,
+                  title: productTitle || '',
+                  image: productImage || { src: '' },
+                  variants: variants.map((variant) => ({
+                    id: variant.id,
+                    title: variant.title || '',
+                    price: variant.price || 0,
+                    inventory: variant.inventory || 0,
+                    discountValue: '',
+                    discountType: 'percent',
+                  })),
+                  discountValue: 0,
+                  discountType: 'percentage',
+                  showVariants: false,
+                  showDiscount: false,
+                });
+              }
+            );
           }
-        );
+        } else {
+          updatedProducts[editingProductIndex] = {
+            ...updatedProducts[editingProductIndex],
+            title: '',
+            variants: [],
+          };
+        }
       } else {
-        // We're not editing a specific product, so add all selections as new products
         selectedItems.forEach(
           ({ productId, productTitle, productImage, variants }) => {
             updatedProducts.push({

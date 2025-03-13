@@ -64,7 +64,15 @@ const SelectProductModal = ({
           limit: productsPerPage,
         });
 
-        // Filter products for display
+        if (
+          response === null ||
+          (Array.isArray(response) && response.length === 0)
+        ) {
+          setHasMore(false);
+          setIsLoading(false);
+          return;
+        }
+
         let filteredProducts = response;
 
         // In edit mode, filter out products that are already selected in other items
@@ -77,8 +85,7 @@ const SelectProductModal = ({
           );
         }
 
-        // If we received fewer items than requested, there are no more items
-        const noMoreItems = filteredProducts.length < productsPerPage;
+        const noMoreItems = response.length < productsPerPage;
         setHasMore(!noMoreItems);
 
         setDisplayedProducts((prev) =>
@@ -88,7 +95,7 @@ const SelectProductModal = ({
         if (!reset) {
           setPage(currentPage + 1);
         } else {
-          setPage(1); // After reset, next page to fetch will be 1
+          setPage(1);
         }
       } catch (err) {
         setError('Failed to load products. Please try again.');
@@ -111,7 +118,7 @@ const SelectProductModal = ({
     if (!containerRef.current || isLoading || !hasMore) return;
 
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    const threshold = 20; // pixels from bottom to trigger load
+    const threshold = 50;
 
     if (scrollTop + clientHeight >= scrollHeight - threshold) {
       loadProducts(false);
@@ -182,29 +189,8 @@ const SelectProductModal = ({
       setDisplayedProducts([]);
       searchChangeRef.current = false;
 
-      let initialSelectedItems = [];
+      setSelectedItems([]);
 
-      if (
-        editingProductIndex !== null &&
-        selectedProducts[editingProductIndex]
-      ) {
-        const editingProduct = selectedProducts[editingProductIndex];
-
-        if (
-          editingProduct.productId &&
-          Array.isArray(editingProduct.variants) &&
-          editingProduct.variants.length > 0
-        ) {
-          initialSelectedItems.push({
-            productId: editingProduct.productId,
-            productTitle: editingProduct.productTitle || '',
-            productImage: editingProduct.productImage || { src: '' },
-            variants: editingProduct.variants,
-          });
-        }
-      }
-
-      setSelectedItems(initialSelectedItems);
       initialLoadRef.current = true;
     } else {
       setSearchTerm('');
@@ -220,7 +206,6 @@ const SelectProductModal = ({
       initialLoadRef.current = false;
       loadProducts(true);
     } else if (searchChangeRef.current) {
-      // This is a search term change
       console.log('Search changed');
       searchChangeRef.current = false;
       loadProducts(true);
@@ -246,7 +231,6 @@ const SelectProductModal = ({
     }
   }, [handleScroll]);
 
-  // Helper function to determine if a product is disabled
   const isProductDisabled = (productId) => {
     return alreadySelectedProductIds.has(productId);
   };
@@ -260,7 +244,7 @@ const SelectProductModal = ({
         size="7xl"
         customFooter={
           <div className="flex items-center justify-between">
-            <span>{selectedItems.length} product variant(s) selected</span>
+            <span>{selectedItems.length} product(s) selected</span>
             <div className="flex gap-4">
               <button
                 className="btn btn-outline border-[#00000066] text-[#00000066]"
